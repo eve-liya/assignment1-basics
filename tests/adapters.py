@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from typing import IO, BinaryIO, Iterable, Optional, Type
 
-from ece496b_basics import train_bpe
+from ece496b_basics import model_util, train_bpe, Tokenizer
 
 import numpy.typing as npt
 import torch
@@ -45,7 +45,9 @@ def run_positionwise_feedforward(
     # You can also manually assign the weights
     # my_ffn.w1.weight.data = weights["w1.weight"]
     # my_ffn.w2.weight.data = weights["w2.weight"]
-    raise NotImplementedError
+    ffn = model_util.FFN(d_model, d_ff)
+    ffn.load_state_dict(weights)
+    return ffn(in_features)
 
 
 def run_scaled_dot_product_attention(
@@ -333,8 +335,8 @@ def run_rmsnorm(
         FloatTensor of with the same shape as `in_features` with the output of running
         RMSNorm of the `in_features`.
     """
-    raise NotImplementedError
-
+    rmsnorm = model_util.RMSNorm(d_model, weights['weight'], eps)
+    return rmsnorm(in_features)
 
 def run_gelu(in_features: torch.FloatTensor) -> torch.FloatTensor:
     """Given a tensor of inputs, return the output of applying GELU
@@ -343,12 +345,14 @@ def run_gelu(in_features: torch.FloatTensor) -> torch.FloatTensor:
     Args:
         in_features: torch.FloatTensor
             Input features to run GELU on. Shape is arbitrary.
+        actual_output.detach().numpy(ddk), expected_output.detach().numpy(), atol=1e-6
 
     Returns:
         FloatTensor of with the same shape as `in_features` with the output of applying
         GELU to each element.
     """
-    raise NotImplementedError
+    gelu = model_util.GELU()
+    return gelu(in_features)
 
 
 def run_get_batch(
@@ -392,7 +396,7 @@ def run_softmax(in_features: torch.FloatTensor, dim: int) -> torch.FloatTensor:
         FloatTensor of with the same shape as `in_features` with the output of
         softmax normalizing the specified `dim`.
     """
-    raise NotImplementedError
+    return model_util.softmax(in_features, dim)
 
 
 def run_cross_entropy(inputs: torch.FloatTensor, targets: torch.LongTensor):
@@ -538,7 +542,7 @@ def get_tokenizer(
     Returns:
         A BPE tokenizer that uses the provided vocab, merges, and special tokens.
     """
-    raise NotImplementedError
+    return Tokenizer.Tokenizer(vocab, merges, special_tokens)
 
 
 def run_train_bpe(
