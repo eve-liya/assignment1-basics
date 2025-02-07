@@ -1,8 +1,12 @@
 import regex as re
 from collections import Counter
+import json
+import pickle
+import time
 
 
 def train_bpe(input_path, vocab_size, special_tokens):
+    start_time = time.time()
     vocab = dict()
     merges: list[tuple[bytes, bytes]]
     new_index = 0
@@ -24,14 +28,17 @@ def train_bpe(input_path, vocab_size, special_tokens):
 
     ## Process each line in the file
     with open(input_path, "r", encoding="utf8") as file:
-        text = file.read()
-        pretokens = pattern.findall(text)
-        for pretoken in pretokens:
-            pretoken = pretoken.encode("utf-8")
-            temp = []
-            for x in range(1, len(pretoken) + 1):
-                temp.append(pretoken[x - 1:x])
-            pretokenized[tuple(temp)] += 1
+        #TODO: add special token detection
+        for text in file:
+            for st in special_tokens:
+                text = text.replace(st, "")
+            pretokens = pattern.findall(text)
+            for pretoken in pretokens:
+                pretoken = pretoken.encode("utf-8")
+                temp = []
+                for x in range(1, len(pretoken) + 1):
+                    temp.append(pretoken[x - 1:x])
+                pretokenized[tuple(temp)] += 1
 
     # Find pair counts
     pair_counts = Counter()
@@ -42,7 +49,8 @@ def train_bpe(input_path, vocab_size, special_tokens):
     while len(vocab) < vocab_size and len(pair_counts) > 0:
 
         curr_max = (0, None) 
-        
+
+        # might be better to do a priority queue... but it passes the tests...
         for pair, count in pair_counts.items():  # Iterate over items in the dictionary.
             if curr_max[1] is None or count > curr_max[0] or (count == curr_max[0] and pair > curr_max[1]):
                 curr_max = (count, pair)
@@ -84,5 +92,28 @@ def train_bpe(input_path, vocab_size, special_tokens):
         # The pair is merged so we can delete it
         del pair_counts[curr_max[1]]
 
+    print(time.time() - start_time)
     return (vocab, merges)
 
+vo, me = train_bpe("tests/fixtures/corpus.en", 500, ["<|endoftext|>"])
+
+# print(vo,me)
+"""
+vo, me = train_bpe("data/TinyStoriesV2-GPT4-train.txt", 10000, ["<|endoftext|>"])
+
+with open("vocab.txt", "w") as file:
+                    for token, string in vo.items():
+                        file.write(
+                            str(token)
+                            + " : "
+                            + string.decode("utf8", errors="replace")
+                            + "\n"
+                        )
+with open("vocab.pkl", "wb") as file:
+    pickle.dump(vo, file)
+with open("merges.txt", "w") as file:
+    for merge in me:
+        file.write(" ".join(map(str, merge)) + "\n")
+with open("merges.pkl", "wb") as file:
+    pickle.dump(me, file)
+"""
