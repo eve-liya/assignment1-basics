@@ -17,11 +17,6 @@ class RMSNorm(nn.Module):
         norm_factor = torch.sqrt(torch.mean(activation**2, dim=-1, keepdim=True) + self.eps)
         return activation / norm_factor * self.weights
 
-if __name__ == '__main__':
-    rmsnorm = RMSNorm(512)
-    ac = torch.randn(512)
-    print(rmsnorm(ac))
-
 class GELU(nn.Module):
     def forward(self, x):
         return x * 0.5 * (1 + torch.erf(x/np.sqrt(2)))
@@ -57,8 +52,8 @@ def scaled_dot_product_attention(Q: torch.FloatTensor, K: torch.FloatTensor, V: 
 
     return attention_weights @ V
 
-class multihead_self_attention(nn.Module):
-    def __init__(self, d_model: int, num_heads: int, weights, attn_pdrop: float = 0):
+class Multihead_self_attention(nn.Module):
+    def __init__(self, d_model: int, num_heads: int, weights: dict[str, torch.FloatTensor] | None, attn_pdrop: float = 0):
         super().__init__()
         self.d_k = d_model // num_heads
         self.num_heads = num_heads
@@ -91,3 +86,24 @@ class multihead_self_attention(nn.Module):
         attention = attention.transpose(1, 2).contiguous().view(batch_size, seq_len, self.d_model)
         output = self.O_proj(attention)
         return output
+
+class Transformer(nn.Module):
+    def __init__(self, d_model: int, num_heads: int, d_ff: int, attn_pdrop: float | None = None, residual_pdrop: float | None = None):
+        super().__init__()
+        self.norm1 = RMSNorm(d_model)
+        self.multi_head_self_attn = Multihead_self_attention(d_model, num_heads, None, attn_pdrop)
+        self.drop1 = nn.Dropout(residual_pdrop)
+
+        self.norm2 = RMSNorm(d_model)
+        self.ffn = FFN(d_model, d_ff)
+        self.drop2 = nn.Dropout(residual_pdrop)
+
+    def forward(self, x: torch.FloatTensor):
+        normalized_attn = self.norm1(x)
+        attn = self.multi_head_self_attn(normalized_attn)
+        x = x + self.drop1(attn)
+
+        normalized_ffn = self.norm2(x)
+        ffn = self.ffn(normalized_ffn)
+        return x + self.drop2(ffn)
+
