@@ -105,3 +105,35 @@ class transformer_block(nn.Module):
         ffn = self.ffn(normalized_ffn)
         return x + self.drop2(ffn)
 
+class transformer_lm(nn.Module):
+    def __init__(self, d_model: int, num_heads: int, d_ff: int, 
+                 vocab_size: int, context_length: int, num_layers: int, 
+                 attn_pdrop: float | None = None, residual_pdrop: float | None = None):
+        super().__init__()
+        self.d_model = d_model
+        self.num_layers = num_layers
+        self.token_embeddings = nn.Embedding(vocab_size, d_model)
+        self.position_embeddings = nn.Embedding(context_length, d_model)
+        self.layers = nn.ModuleList([
+            transformer_block(d_model, num_heads, d_ff, attn_pdrop, residual_pdrop) for _ in range(num_layers)
+        ])
+        self.dropout = nn.Dropout(residual_pdrop)
+        self.norm = RMSNorm(d_model)
+        self.output_embedding = nn.Linear(d_model, vocab_size, bias=False)
+
+    def forward(self, x: torch.LongTensor) -> torch.FloatTensor:
+        batch_size, sequence_length = x.size()
+        # Absolute position embedding
+        positions_embedding = self.position_embeddings(torch.arange(batch_size, device=x.device).expand(batch_size, sequence_length))
+        # Token embedding
+        token_embeddings = self.token_embeddings(x)
+        # Add and dropout
+        embedding = token_embeddings + positions_embedding
+        x = self.dropout(embedding)
+        # Transformer blocks
+        for layer in self.layers:
+            x = layer(x)
+        # Output
+        x = self.norm(x)
+        x = self.output_embedding(x)
+        return x

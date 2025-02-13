@@ -212,7 +212,7 @@ def run_transformer_block(
         FloatTensor of shape (batch_size, sequence_length, d_model) with the output of
         running the Transformer block on the input features.
     """
-    transformer_block = model_util.Transformer(d_model, num_heads, d_ff, attn_pdrop, residual_pdrop)
+    transformer_block = model_util.transformer_block(d_model, num_heads, d_ff, attn_pdrop, residual_pdrop)
     return transformer_block(in_features)
 
 
@@ -306,8 +306,9 @@ def run_transformer_lm(
         FloatTensor of shape (batch size, sequence_length, vocab_size) with the predicted unnormalized
         next-word distribution for each token.
     """
-    raise NotImplementedError
-
+    tlm = model_util.transformer_lm(d_model, num_heads, d_ff, vocab_size, context_length, num_layers, attn_pdrop, residual_pdrop)
+    tlm.load_state_dict(weights)
+    return tlm(in_indices)
 
 def run_rmsnorm(
     d_model: int,
