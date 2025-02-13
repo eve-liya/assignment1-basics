@@ -8,14 +8,14 @@ class RMSNorm(nn.Module):
         super().__init__()
         self.d_model = d_model
         if weights is None:
-            self.weights = nn.Parameter(torch.ones(d_model))
+            self.weight = nn.Parameter(torch.ones(d_model))
         else:
-            self.weights = weights
+            self.weight = weights
         self.eps = eps
 
     def forward(self, activation):
         norm_factor = torch.sqrt(torch.mean(activation**2, dim=-1, keepdim=True) + self.eps)
-        return activation / norm_factor * self.weights
+        return activation / norm_factor * self.weight
 
 class GELU(nn.Module):
     def forward(self, x):
@@ -60,50 +60,48 @@ class Multihead_self_attention(nn.Module):
         self.d_model = d_model
         self.attn_pdrop = attn_pdrop
 
-        self.Q_proj = nn.Linear(d_model, d_model, bias=False)
-        self.K_proj = nn.Linear(d_model, d_model, bias=False)
-        self.V_proj = nn.Linear(d_model, d_model, bias=False)
-        self.O_proj = nn.Linear(d_model, d_model, bias=False)
+        self.q_proj = nn.Linear(d_model, d_model, bias=False)
+        self.k_proj = nn.Linear(d_model, d_model, bias=False)
+        self.v_proj = nn.Linear(d_model, d_model, bias=False)
+        self.output_proj = nn.Linear(d_model, d_model, bias=False)
         if weights is not None:
             with torch.no_grad():
-                self.Q_proj.weight.copy_(torch.stack([weights[f"q_heads.{row}.weight"] for row in range(num_heads)]).reshape(d_model, d_model))
-                self.K_proj.weight.copy_(torch.stack([weights[f"k_heads.{row}.weight"] for row in range(num_heads)]).reshape(d_model, d_model))
-                self.V_proj.weight.copy_(torch.stack([weights[f"v_heads.{row}.weight"] for row in range(num_heads)]).reshape(d_model, d_model))
-                self.O_proj.weight.copy_(weights['output_proj.weight'])
-
-
+                self.q_proj.weight.copy_(torch.stack([weights[f"q_heads.{row}.weight"] for row in range(num_heads)]).reshape(d_model, d_model))
+                self.k_proj.weight.copy_(torch.stack([weights[f"k_heads.{row}.weight"] for row in range(num_heads)]).reshape(d_model, d_model))
+                self.v_proj.weight.copy_(torch.stack([weights[f"v_heads.{row}.weight"] for row in range(num_heads)]).reshape(d_model, d_model))
+                self.output_proj.weight.copy_(weights['output_proj.weight'])
 
     def forward(self, x: torch.FloatTensor):
         batch_size, seq_len, _ = x.shape
 
-        Q = self.Q_proj(x).view(batch_size, seq_len, self.num_heads, self.d_k).transpose(1,2)  # (B, T, H, d_k)
-        K = self.K_proj(x).view(batch_size, seq_len, self.num_heads, self.d_k).transpose(1,2)  # (B, T, H, d_k)
-        V = self.V_proj(x).view(batch_size, seq_len, self.num_heads, self.d_k).transpose(1,2)  # (B, T, H, d_v)
+        Q = self.q_proj(x).view(batch_size, seq_len, self.num_heads, self.d_k).transpose(1,2)  # (B, T, H, d_k)
+        K = self.k_proj(x).view(batch_size, seq_len, self.num_heads, self.d_k).transpose(1,2)  # (B, T, H, d_k)
+        V = self.v_proj(x).view(batch_size, seq_len, self.num_heads, self.d_k).transpose(1,2)  # (B, T, H, d_v)
 
         mask = torch.triu(torch.ones(seq_len, seq_len, dtype=torch.bool, device=x.device), diagonal=1)
 
         attention = scaled_dot_product_attention(Q, K, V, mask, self.attn_pdrop)
         attention = attention.transpose(1, 2).contiguous().view(batch_size, seq_len, self.d_model)
-        output = self.O_proj(attention)
+        output = self.output_proj(attention)
         return output
 
-class Transformer(nn.Module):
+class transformer_block(nn.Module):
     def __init__(self, d_model: int, num_heads: int, d_ff: int, attn_pdrop: float | None = None, residual_pdrop: float | None = None):
         super().__init__()
-        self.norm1 = RMSNorm(d_model)
-        self.multi_head_self_attn = Multihead_self_attention(d_model, num_heads, None, attn_pdrop)
+        self.ln1 = RMSNorm(d_model)
+        self.attn = Multihead_self_attention(d_model, num_heads, None, attn_pdrop)
         self.drop1 = nn.Dropout(residual_pdrop)
 
-        self.norm2 = RMSNorm(d_model)
+        self.ln2 = RMSNorm(d_model)
         self.ffn = FFN(d_model, d_ff)
         self.drop2 = nn.Dropout(residual_pdrop)
 
     def forward(self, x: torch.FloatTensor):
-        normalized_attn = self.norm1(x)
-        attn = self.multi_head_self_attn(normalized_attn)
+        normalized_attn = self.ln1(x)
+        attn = self.attn(normalized_attn)
         x = x + self.drop1(attn)
 
-        normalized_ffn = self.norm2(x)
+        normalized_ffn = self.ln2(x)
         ffn = self.ffn(normalized_ffn)
         return x + self.drop2(ffn)
 
