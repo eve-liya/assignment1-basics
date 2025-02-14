@@ -3,7 +3,7 @@ import torch
 import numpy.typing as npt
 import typing
 import os
-from typing import Tuple
+
 def get_batch(dataset: npt.NDArray, batch_size: int, context_length: int, device: str):
     n = len(dataset) - context_length
     idx = np.random.randint(0, n, size=batch_size)

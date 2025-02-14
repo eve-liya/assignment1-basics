@@ -90,11 +90,11 @@ class transformer_block(nn.Module):
         super().__init__()
         self.ln1 = RMSNorm(d_model)
         self.attn = Multihead_self_attention(d_model, num_heads, None, attn_pdrop)
-        self.drop1 = nn.Dropout(residual_pdrop)
+        self.drop1 = nn.Dropout(residual_pdrop or 0.0)
 
         self.ln2 = RMSNorm(d_model)
         self.ffn = FFN(d_model, d_ff)
-        self.drop2 = nn.Dropout(residual_pdrop)
+        self.drop2 = nn.Dropout(residual_pdrop or 0.0)
 
     def forward(self, x: torch.FloatTensor):
         normalized_attn = self.ln1(x)
@@ -108,7 +108,7 @@ class transformer_block(nn.Module):
 class transformer_lm(nn.Module):
     def __init__(self, d_model: int, num_heads: int, d_ff: int, 
                  vocab_size: int, context_length: int, num_layers: int, 
-                 attn_pdrop: float | None = None, residual_pdrop: float | None = None):
+                 attn_pdrop: float | None = None, residual_pdrop: float | None = None, **kwargs):
         super().__init__()
         self.d_model = d_model
         self.num_layers = num_layers
@@ -117,7 +117,7 @@ class transformer_lm(nn.Module):
         self.layers = nn.ModuleList([
             transformer_block(d_model, num_heads, d_ff, attn_pdrop, residual_pdrop) for _ in range(num_layers)
         ])
-        self.dropout = nn.Dropout(residual_pdrop)
+        self.dropout = nn.Dropout(residual_pdrop or 0.0)
         self.ln_final = RMSNorm(d_model)
         self.lm_head = nn.Linear(d_model, vocab_size, bias=False)
 

@@ -192,3 +192,8 @@ pyrightconfig.json
 
 # Datasets
 data
+
+# VS code
+.vscode
+wandb
+slurms
