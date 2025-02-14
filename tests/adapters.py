@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from typing import IO, BinaryIO, Iterable, Optional, Type
 
-from ece496b_basics import model_util, train_bpe, Tokenizer
+from ece496b_basics import tokenizer, train_bpe, transformer_model, training
 
 import numpy.typing as npt
 import torch
