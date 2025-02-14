@@ -1,5 +1,11 @@
 from typing import List, Dict, Tuple, Iterable, Iterator, Optional
 import regex as re
+import pickle
+from tqdm import tqdm
+
+PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+pattern = re.compile(PAT)
+
 
 class Tokenizer:
 
@@ -25,13 +31,11 @@ class Tokenizer:
 
 
     @classmethod
-    def from_files(cls, vocab_filepath: str, merges_filepath: str, special_tokens: Optional[List[str]] = None):
-        with open(vocab_filepath, 'r', encoding='utf-8') as vf:
-            vocab = {int(line.split()[1]): line.split()[0].encode('utf-8') for line in vf}
-
-        with open(merges_filepath, 'r', encoding='utf-8') as mf:
-            merges = [tuple(line.strip().split()) for line in mf if line.strip()]
-
+    def from_files(cls, vocab_filepath: str, merges_filepath: str, special_tokens: Optional[List[str]] = None, **kwargs):
+        with open(vocab_filepath, "rb") as vf:
+            vocab = pickle.load(vf)
+        with open(merges_filepath, "rb") as mf:
+            merges = pickle.load(mf)
         return cls(vocab, merges, special_tokens)
     
 
@@ -62,8 +66,6 @@ class Tokenizer:
         if chunk in self.special_tokens:
             return [self.special_tokens[chunk]]
         # Pretokenize 
-        PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
-        pattern = re.compile(PAT)
         tokens = pattern.findall(chunk)
         ret = []
         for token in tokens:
@@ -82,11 +84,11 @@ class Tokenizer:
             ret.extend(encoded)
         return ret
 
-    def encode(self, text: str) -> List[int]:
+    def encode(self, text: str, show_progress = True) -> List[int]:
         # break it up along special tokens so they don't get broken up
         chunks = self._split_text(text)
         encoded = []
-        for chunk in chunks:    
+        for chunk in tqdm(chunks, f"Encoding {len(chunks)}", disable = (not show_progress)):    
             if chunk in self.special_tokens:
                 # add it directly
                 encoded.append(self.inverse_vocab[chunk.encode("utf-8")])
