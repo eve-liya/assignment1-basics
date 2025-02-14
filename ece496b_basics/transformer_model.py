@@ -52,7 +52,7 @@ def scaled_dot_product_attention(Q: torch.FloatTensor, K: torch.FloatTensor, V: 
 
     return attention_weights @ V
 
-class Multihead_self_attention(nn.Module):
+class Multihead_Self_Attention(nn.Module):
     def __init__(self, d_model: int, num_heads: int, weights: dict[str, torch.FloatTensor] | None, attn_pdrop: float = 0):
         super().__init__()
         self.d_k = d_model // num_heads
@@ -85,11 +85,11 @@ class Multihead_self_attention(nn.Module):
         output = self.output_proj(attention)
         return output
 
-class transformer_block(nn.Module):
+class Transformer_Block(nn.Module):
     def __init__(self, d_model: int, num_heads: int, d_ff: int, attn_pdrop: float | None = None, residual_pdrop: float | None = None):
         super().__init__()
         self.ln1 = RMSNorm(d_model)
-        self.attn = Multihead_self_attention(d_model, num_heads, None, attn_pdrop)
+        self.attn = Multihead_Self_Attention(d_model, num_heads, None, attn_pdrop)
         self.drop1 = nn.Dropout(residual_pdrop or 0.0)
 
         self.ln2 = RMSNorm(d_model)
@@ -105,7 +105,7 @@ class transformer_block(nn.Module):
         ffn = self.ffn(normalized_ffn)
         return x + self.drop2(ffn)
 
-class transformer_lm(nn.Module):
+class Transformer_LM(nn.Module):
     def __init__(self, d_model: int, num_heads: int, d_ff: int, 
                  vocab_size: int, context_length: int, num_layers: int, 
                  attn_pdrop: float | None = None, residual_pdrop: float | None = None, **kwargs):
@@ -115,7 +115,7 @@ class transformer_lm(nn.Module):
         self.token_embeddings = nn.Embedding(vocab_size, d_model)
         self.position_embeddings = nn.Embedding(context_length, d_model)
         self.layers = nn.ModuleList([
-            transformer_block(d_model, num_heads, d_ff, attn_pdrop, residual_pdrop) for _ in range(num_layers)
+            Transformer_Block(d_model, num_heads, d_ff, attn_pdrop, residual_pdrop) for _ in range(num_layers)
         ])
         self.dropout = nn.Dropout(residual_pdrop or 0.0)
         self.ln_final = RMSNorm(d_model)

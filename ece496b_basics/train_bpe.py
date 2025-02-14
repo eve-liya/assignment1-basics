@@ -129,10 +129,10 @@ def train_bpe(input_path, vocab_size, special_tokens):
 
 if __name__ == '__main__':
     import sys
-    if len(sys.argv) != 3:
+    if len(sys.argv) != 4:
         print("Usage: dataset, vocab size, special tokens")
         exit()
-    vo, me = train_bpe(sys.argv[0], int(sys.argv[1], sys.argv[2]))
+    vo, me = train_bpe(sys.argv[1], int(sys.argv[2], sys.argv[3]))
 
     with open("vocab.txt", "w") as file:
                         for token, string in vo.items():

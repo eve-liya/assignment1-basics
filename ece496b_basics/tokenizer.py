@@ -84,7 +84,7 @@ class Tokenizer:
             ret.extend(encoded)
         return ret
 
-    def encode(self, text: str, show_progress = True) -> List[int]:
+    def encode(self, text: str, show_progress = False) -> List[int]:
         # break it up along special tokens so they don't get broken up
         chunks = self._split_text(text)
         encoded = []

@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from typing import IO, BinaryIO, Iterable, Optional, Type
 
-from ece496b_basics import Tokenizer, train_bpe, transformer_model, training, model_data
+from ece496b_basics import optimizing, tokenizer, train_bpe, transformer_model, model_data
 
 import numpy.typing as npt
 import torch
@@ -139,7 +139,7 @@ def run_multihead_self_attention(
         torch.FloatTensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    msa = transformer_model.Multihead_self_attention(d_model, num_heads, weights, attn_pdrop)
+    msa = transformer_model.Multihead_Self_Attention(d_model, num_heads, weights, attn_pdrop)
     return msa(in_features)
 
 
@@ -212,7 +212,7 @@ def run_transformer_block(
         FloatTensor of shape (batch_size, sequence_length, d_model) with the output of
         running the Transformer block on the input features.
     """
-    transformer_block = transformer_model.transformer_block(d_model, num_heads, d_ff, attn_pdrop, residual_pdrop)
+    transformer_block = transformer_model.Transformer_Block(d_model, num_heads, d_ff, attn_pdrop, residual_pdrop)
     return transformer_block(in_features)
 
 
@@ -306,7 +306,7 @@ def run_transformer_lm(
         FloatTensor of shape (batch size, sequence_length, vocab_size) with the predicted unnormalized
         next-word distribution for each token.
     """
-    tlm = transformer_model.transformer_lm(d_model, num_heads, d_ff, vocab_size, context_length, num_layers, attn_pdrop, residual_pdrop)
+    tlm = transformer_model.Transformer_LM(d_model, num_heads, d_ff, vocab_size, context_length, num_layers, attn_pdrop, residual_pdrop)
     tlm.load_state_dict(weights)
     return tlm(in_indices)
 
@@ -417,7 +417,7 @@ def run_cross_entropy(inputs: torch.FloatTensor, targets: torch.LongTensor):
     Returns:
         Tensor of shape () with the average cross-entropy loss across examples.
     """
-    return training.cross_entropy_loss(inputs, targets)
+    return optimizing.cross_entropy_loss(inputs, targets)
 
 def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm: float):
     """Given a set of parameters, clip their combined gradients to have l2 norm at most max_l2_norm.
@@ -431,14 +431,14 @@ def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm:
     Returns:
         None
     """
-    training.gradient_clipping(parameters, max_l2_norm)
+    optimizing.gradient_clipping(parameters, max_l2_norm)
 
 
 def get_adamw_cls() -> Type[torch.optim.Optimizer]:
     """
     Returns a torch.optim.Optimizer that implements AdamW.
     """
-    return training.AdamW
+    return optimizing.AdamW
 
 
 def run_get_lr_cosine_schedule(
@@ -471,7 +471,7 @@ def run_get_lr_cosine_schedule(
     Returns:
         Learning rate at the given iteration under the specified schedule.
     """
-    return training.lr_cosine_schedule(it, max_learning_rate, min_learning_rate, warmup_iters, cosine_cycle_iters)
+    return optimizing.lr_cosine_schedule(it, max_learning_rate, min_learning_rate, warmup_iters, cosine_cycle_iters)
 
 def run_save_checkpoint(
     model: torch.nn.Module,
@@ -542,7 +542,7 @@ def get_tokenizer(
     Returns:
         A BPE tokenizer that uses the provided vocab, merges, and special tokens.
     """
-    return Tokenizer.Tokenizer(vocab, merges, special_tokens)
+    return tokenizer.Tokenizer(vocab, merges, special_tokens)
 
 
 def run_train_bpe(

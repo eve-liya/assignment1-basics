@@ -5,8 +5,8 @@ import logging
 import numpy as np
 import wandb  
 
-from transformer_model import transformer_lm      
-from training import AdamW, cross_entropy_loss, gradient_clipping, lr_cosine_schedule
+from transformer_model import Transformer_LM      
+from ece496b_basics.optimizing import AdamW, cross_entropy_loss, gradient_clipping, lr_cosine_schedule
 from model_data import save_checkpoint, load_checkpoint, get_batch
 
 # Set up logging
@@ -84,7 +84,7 @@ def main():
         }
     )
 
-    model = transformer_lm(d_model=args.d_model, num_heads=args.num_heads, 
+    model = Transformer_LM(d_model=args.d_model, num_heads=args.num_heads, 
                            d_ff=args.d_ff, vocab_size=args.vocab_size, context_length=args.context_length,
                            num_layers=args.num_layers, attn_pdrop=args.attn_pdrop, residual_pdrop=args.residual_pdrop)
     model.to(args.device)

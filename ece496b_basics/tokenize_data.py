@@ -2,7 +2,7 @@ import sys
 import numpy as np
 import logging
 from tqdm import tqdm
-from Tokenizer import Tokenizer
+from ece496b_basics.tokenizer import Tokenizer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
