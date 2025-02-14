@@ -1,5 +1,6 @@
 import torch
 import math
+from typing import Iterable
 
 def cross_entropy_loss(prediction: torch.FloatTensor, target: torch.LongTensor):
     # Subtract max value for numerical stability
@@ -14,6 +15,7 @@ def cross_entropy_loss(prediction: torch.FloatTensor, target: torch.LongTensor):
 
     # Compute the negative log likelihood loss
     return -target_log_probs.mean()
+
 class AdamW(torch.optim.Optimizer):
     def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8, weight_decay=1e-2):
         defaults = dict(lr=lr, betas=betas, eps=eps, weight_decay=weight_decay)
@@ -62,3 +64,24 @@ class AdamW(torch.optim.Optimizer):
                 # Apply weight decay separately
                 if weight_decay > 0:
                     p.data.add_(p.data, alpha=-lr * weight_decay)
+
+def lr_cosine_schedule(t: int, alpha_max: float, alpha_min: float, T_w: int, T_c: int):
+    if t < T_w:
+        # Warm-up phase
+        return (t / T_w) * alpha_max
+    elif T_w <= t <= T_c:
+        # Cosine annealing phase
+        return alpha_min + 0.5 * (alpha_max - alpha_min) * (1 + math.cos(math.pi * (t - T_w) / (T_c - T_w)))
+    else:
+        # Post-annealing phase
+        return alpha_min
+
+def gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_norm: float):
+    # compute l2 norm
+    total_norm = torch.sqrt(sum(p.grad.norm(2).pow(2) for p in parameters if p.grad is not None))
+    if total_norm > max_norm:
+        scale_factor = max_norm / (total_norm + 1e-6)
+        for p in parameters:
+            if p.grad is not None:
+                p.grad.mul_(scale_factor)
+ 
