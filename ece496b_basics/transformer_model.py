@@ -118,13 +118,14 @@ class transformer_lm(nn.Module):
             transformer_block(d_model, num_heads, d_ff, attn_pdrop, residual_pdrop) for _ in range(num_layers)
         ])
         self.dropout = nn.Dropout(residual_pdrop)
-        self.norm = RMSNorm(d_model)
-        self.output_embedding = nn.Linear(d_model, vocab_size, bias=False)
+        self.ln_final = RMSNorm(d_model)
+        self.lm_head = nn.Linear(d_model, vocab_size, bias=False)
 
     def forward(self, x: torch.LongTensor) -> torch.FloatTensor:
         batch_size, sequence_length = x.size()
         # Absolute position embedding
-        positions_embedding = self.position_embeddings(torch.arange(batch_size, device=x.device).expand(batch_size, sequence_length))
+        position_indices = torch.arange(sequence_length, device=x.device).unsqueeze(0).expand(batch_size, sequence_length)
+        positions_embedding = self.position_embeddings(position_indices)
         # Token embedding
         token_embeddings = self.token_embeddings(x)
         # Add and dropout
@@ -134,6 +135,6 @@ class transformer_lm(nn.Module):
         for layer in self.layers:
             x = layer(x)
         # Output
-        x = self.norm(x)
-        x = self.output_embedding(x)
+        x = self.ln_final(x)
+        x = self.lm_head(x)
         return x
