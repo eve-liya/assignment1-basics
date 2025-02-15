@@ -15,6 +15,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 def parse_args():
     parser = argparse.ArgumentParser(description="Train Transformer LM")
     
+    parser.add_argument("--experiment_name", type=str, required=True, help="Name for logging")
     # Dataset
     parser.add_argument("--train_file", type=str, required=True, help="Path to training text file")
     parser.add_argument("--valid_file", type=str, required=True, help="Path to validation text file")
@@ -67,7 +68,8 @@ def main():
 
     # Initialize WandB
     wandb.init(
-        project="transformer_lm_project",
+        project= args.experiment_name,
+        
         # log down the hyperparams
         config={
             "vocab_size": args.vocab_size,
