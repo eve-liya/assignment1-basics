@@ -2,6 +2,7 @@ from typing import Optional
 import torch
 import torch.nn as nn
 import numpy as np
+import logging
 
 class RMSNorm(nn.Module):
     def __init__(self, d_model, weights = None, eps = 1e-5):
@@ -116,6 +117,163 @@ class Transformer_LM(nn.Module):
         self.position_embeddings = nn.Embedding(context_length, d_model)
         self.layers = nn.ModuleList([
             Transformer_Block(d_model, num_heads, d_ff, attn_pdrop, residual_pdrop) for _ in range(num_layers)
+        ])
+        self.dropout = nn.Dropout(residual_pdrop or 0.0)
+        self.ln_final = RMSNorm(d_model)
+        self.lm_head = nn.Linear(d_model, vocab_size, bias=False)
+
+    def forward(self, x: torch.LongTensor) -> torch.FloatTensor:
+        batch_size, sequence_length = x.size()
+        # Absolute position embedding
+        position_indices = torch.arange(sequence_length, device=x.device).unsqueeze(0).expand(batch_size, sequence_length)
+        positions_embedding = self.position_embeddings(position_indices)
+        # Token embedding
+        token_embeddings = self.token_embeddings(x)
+        # Add and dropout
+        embedding = token_embeddings + positions_embedding
+        x = self.dropout(embedding)
+        # Transformer blocks
+        for layer in self.layers:
+            x = layer(x)
+        # Output
+        x = self.ln_final(x)
+        x = self.lm_head(x)
+        return x
+
+class Parallel_Layer_Transformer_Block(nn.Module):
+    def __init__(self, d_model: int, num_heads: int, d_ff: int, attn_pdrop: float | None = None, residual_pdrop: float | None = None):
+        super().__init__()
+        self.ln1 = RMSNorm(d_model)
+        self.attn = Multihead_Self_Attention(d_model, num_heads, None, attn_pdrop)
+        self.drop1 = nn.Dropout(residual_pdrop or 0.0)
+
+        self.ln2 = RMSNorm(d_model)
+        self.ffn = FFN(d_model, d_ff)
+        self.drop2 = nn.Dropout(residual_pdrop or 0.0)
+
+    def forward(self, x: torch.FloatTensor):
+        # Parallel Layers
+        x_residual = x
+        x1 = self.drop1(self.attn(self.ln1(x)))
+        x2 = self.drop2(self.ffn(self.ln2(x)))
+        return x_residual + x1 + x2
+
+class Parallel_Transformer_LM(nn.Module):
+    def __init__(self, d_model: int, num_heads: int, d_ff: int, 
+                 vocab_size: int, context_length: int, num_layers: int, 
+                 attn_pdrop: float | None = None, residual_pdrop: float | None = None, **kwargs):
+        super().__init__()
+        logging.info("Initializing Parallel Layer Transformer")
+        self.d_model = d_model
+        self.num_layers = num_layers
+        self.token_embeddings = nn.Embedding(vocab_size, d_model)
+        self.position_embeddings = nn.Embedding(context_length, d_model)
+        self.layers = nn.ModuleList([
+            Parallel_Layer_Transformer_Block(d_model, num_heads, d_ff, attn_pdrop, residual_pdrop) for _ in range(num_layers)
+        ])
+        self.dropout = nn.Dropout(residual_pdrop or 0.0)
+        self.ln_final = RMSNorm(d_model)
+        self.lm_head = nn.Linear(d_model, vocab_size, bias=False)
+
+    def forward(self, x: torch.LongTensor) -> torch.FloatTensor:
+        batch_size, sequence_length = x.size()
+        # Absolute position embedding
+        position_indices = torch.arange(sequence_length, device=x.device).unsqueeze(0).expand(batch_size, sequence_length)
+        positions_embedding = self.position_embeddings(position_indices)
+        # Token embedding
+        token_embeddings = self.token_embeddings(x)
+        # Add and dropout
+        embedding = token_embeddings + positions_embedding
+        x = self.dropout(embedding)
+        # Transformer blocks
+        for layer in self.layers:
+            x = layer(x)
+        # Output
+        x = self.ln_final(x)
+        x = self.lm_head(x)
+        return x
+    
+class Norm_Ablation_Transformer_Block(nn.Module):
+    def __init__(self, d_model: int, num_heads: int, d_ff: int, attn_pdrop: float | None = None, residual_pdrop: float | None = None):
+        super().__init__()
+        self.attn = Multihead_Self_Attention(d_model, num_heads, None, attn_pdrop)
+        self.drop1 = nn.Dropout(residual_pdrop or 0.0)
+
+        self.ffn = FFN(d_model, d_ff)
+        self.drop2 = nn.Dropout(residual_pdrop or 0.0)
+
+    def forward(self, x: torch.FloatTensor):
+        x = x + self.drop1(self.attn(x))
+        ffn = self.ffn(x)
+        return x + self.drop2(ffn)
+
+class Norm_Ablation_Transformer_LM(nn.Module):
+    def __init__(self, d_model: int, num_heads: int, d_ff: int, 
+                 vocab_size: int, context_length: int, num_layers: int, 
+                 attn_pdrop: float | None = None, residual_pdrop: float | None = None, **kwargs):
+        super().__init__()
+        logging.info("Initializing Norm Ablation Transformer")
+        self.d_model = d_model
+        self.num_layers = num_layers
+        self.token_embeddings = nn.Embedding(vocab_size, d_model)
+        self.position_embeddings = nn.Embedding(context_length, d_model)
+        self.layers = nn.ModuleList([
+            Norm_Ablation_Transformer_Block(d_model, num_heads, d_ff, attn_pdrop, residual_pdrop) for _ in range(num_layers)
+        ])
+        self.ln_final = RMSNorm(d_model)
+        self.lm_head = nn.Linear(d_model, vocab_size, bias=False)
+
+    def forward(self, x: torch.LongTensor) -> torch.FloatTensor:
+        batch_size, sequence_length = x.size()
+        # Absolute position embedding
+        position_indices = torch.arange(sequence_length, device=x.device).unsqueeze(0).expand(batch_size, sequence_length)
+        positions_embedding = self.position_embeddings(position_indices)
+        # Token embedding
+        token_embeddings = self.token_embeddings(x)
+        # Add and dropout
+        embedding = token_embeddings + positions_embedding
+        x = embedding
+        # Transformer blocks
+        for layer in self.layers:
+            x = layer(x)
+        # Output
+        x = self.lm_head(x)
+        return x
+
+class Post_Norm_Transformer_Block(nn.Module):
+    def __init__(self, d_model: int, num_heads: int, d_ff: int, attn_pdrop: float | None = None, residual_pdrop: float | None = None):
+        super().__init__()
+        self.ln1 = RMSNorm(d_model)
+        self.attn = Multihead_Self_Attention(d_model, num_heads, None, attn_pdrop)
+        self.drop1 = nn.Dropout(residual_pdrop or 0.0)
+
+        self.ln2 = RMSNorm(d_model)
+        self.ffn = FFN(d_model, d_ff)
+        self.drop2 = nn.Dropout(residual_pdrop or 0.0)
+
+    def forward(self, x: torch.FloatTensor):
+        attn = self.attn(x)
+        x = self.drop1(x + attn)
+        x = self.ln1(x)
+
+        ffn = self.ffn(x)
+        x = self.drop2(x + ffn)
+        x = self.ln2(x)
+
+        return x
+
+class Post_Norm_Transformer_LM(nn.Module):
+    def __init__(self, d_model: int, num_heads: int, d_ff: int, 
+                 vocab_size: int, context_length: int, num_layers: int, 
+                 attn_pdrop: float | None = None, residual_pdrop: float | None = None, **kwargs):
+        super().__init__()
+        logging.info("Initializing Post Norm Transformer")
+        self.d_model = d_model
+        self.num_layers = num_layers
+        self.token_embeddings = nn.Embedding(vocab_size, d_model)
+        self.position_embeddings = nn.Embedding(context_length, d_model)
+        self.layers = nn.ModuleList([
+            Post_Norm_Transformer_Block(d_model, num_heads, d_ff, attn_pdrop, residual_pdrop) for _ in range(num_layers)
         ])
         self.dropout = nn.Dropout(residual_pdrop or 0.0)
         self.ln_final = RMSNorm(d_model)

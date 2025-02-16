@@ -5,7 +5,7 @@ import logging
 import numpy as np
 import wandb  
 
-from transformer_model import Transformer_LM      
+from transformer_model import Transformer_LM, Parallel_Transformer_LM, Post_Norm_Transformer_LM, Norm_Ablation_Transformer_LM
 from ece496b_basics.optimizing import AdamW, cross_entropy_loss, gradient_clipping, lr_cosine_schedule
 from model_data import save_checkpoint, load_checkpoint, get_batch
 
@@ -46,6 +46,9 @@ def parse_args():
     parser.add_argument("--eval_interval", type=int, default=500, help="Iterations between validation")
     parser.add_argument("--eval_iters", type=int, default=100, help="Batches for evaluation")
 
+    # Ablation Study
+    parser.add_argument("--ablation", type=str, required=False, help="Which ablation to run")
+
     return parser.parse_args()
 
 def evaluate(model: torch.nn.Module, dataset, config):
@@ -85,10 +88,29 @@ def main():
             "total_iters": args.total_iters
         }
     )
+    
+    model = None
+    match args.ablation:
+        case "parallel":
+            logging.info(f"Parallel Layer Abalation")
+            model = Parallel_Transformer_LM(d_model=args.d_model, num_heads=args.num_heads, 
+                                d_ff=args.d_ff, vocab_size=args.vocab_size, context_length=args.context_length,
+                                num_layers=args.num_layers, attn_pdrop=args.attn_pdrop, residual_pdrop=args.residual_pdrop)
+        case "no-norm":
+            logging.info(f"Norm Abalation")
+            model = Norm_Ablation_Transformer_LM(d_model=args.d_model, num_heads=args.num_heads, 
+                                d_ff=args.d_ff, vocab_size=args.vocab_size, context_length=args.context_length,
+                                num_layers=args.num_layers, attn_pdrop=args.attn_pdrop, residual_pdrop=args.residual_pdrop)
+        case "post_norm":
+            logging.info(f"Post Norm Abalation")
+            model = Post_Norm_Transformer_LM(d_model=args.d_model, num_heads=args.num_heads, 
+                                d_ff=args.d_ff, vocab_size=args.vocab_size, context_length=args.context_length,
+                                num_layers=args.num_layers, attn_pdrop=args.attn_pdrop, residual_pdrop=args.residual_pdrop)
+        case _:
+            model = Transformer_LM(d_model=args.d_model, num_heads=args.num_heads, 
+                                d_ff=args.d_ff, vocab_size=args.vocab_size, context_length=args.context_length,
+                                num_layers=args.num_layers, attn_pdrop=args.attn_pdrop, residual_pdrop=args.residual_pdrop)
 
-    model = Transformer_LM(d_model=args.d_model, num_heads=args.num_heads, 
-                           d_ff=args.d_ff, vocab_size=args.vocab_size, context_length=args.context_length,
-                           num_layers=args.num_layers, attn_pdrop=args.attn_pdrop, residual_pdrop=args.residual_pdrop)
     model.to(args.device)
 
     train_dataset = np.memmap(args.train_file, dtype=np.uint16, mode='r')
