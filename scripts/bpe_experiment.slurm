@@ -1,5 +1,6 @@
-## batch job to run experiments
 #!/bin/bash
+## batch job to run experiments
+
 #SBATCH --job-name=bpe_exp
 #SBATCH --partition=kill-shared
 #SBATCH --time=1-00:00:00

@@ -193,7 +193,14 @@ pyrightconfig.json
 # Datasets
 data
 
+
 # VS code
 .vscode
+
+# misc
+checkpoints
 wandb
 slurms
+logs
+*.err
+*.out
