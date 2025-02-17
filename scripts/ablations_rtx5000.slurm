@@ -40,14 +40,11 @@ ABLATION=${ABLATIONS[$SLURM_ARRAY_TASK_ID]}
 
 ## Can't consistently get the V100 so reduce batch size down
 
-python ece496b_basics/run_model.py --experiment_name ${ABLATION}-rtx5000 --train_file data/tiny/train.npy \
+python ece496b_basics/run_model.py --experiment_name ${ABLATION}-rtx5000-1 --train_file data/tiny/train.npy \
     --valid_file data/tiny/valid.npy \
     --vocab_size 10000 \
     --d_model 512 --num_heads 16 --num_layers 4 --d_ff 2048 \
-    --context_length 256 --batch_size 96 --total_iters 2000 \
+    --context_length 256 --batch_size 96 --total_iters 10000 \
     --lr_max 0.001 --weight_decay 1e-2 \
-    --checkpoint_path checkpoints/checkpoint_ablation_${ABLATION}-rtx5000.pth --save_interval 100 \
+    --checkpoint_path checkpoints/checkpoint_long_ablation_${ABLATION}-rtx5000-1.pth --save_interval 100 \
     --log_interval 10 --eval_interval 100 --eval_iters 100 \
-    --ablation $ABLATION
-
-

@@ -74,12 +74,16 @@ def main():
                            d_ff=2048, vocab_size=32000, context_length=256,
                            num_layers=4)
     model.load_state_dict(torch.load("checkpoints/checkpoint-owt-rtx5000.pth")['model_state'])  
+    # model.load_state_dict(torch.load("checkpoints/checkpoint_batchof_96-rtx5000.pth")['model_state'])  
+    # model.load_state_dict(torch.load("checkpoints/H100checkpoint.pth")['model_state'])  
+
     model.eval()  # Set the model to evaluation mode
 
     # Load the tokenizer
     tokenizer = Tokenizer.from_files('bpe_tokenizers/owt_bpe/vocab.pkl', 'bpe_tokenizers/owt_bpe/merges.pkl', ['<|endoftext|>'])
+    # tokenizer = Tokenizer.from_files('bpe_tokenizers/tiny_bpe/vocab.pkl', 'bpe_tokenizers/tiny_bpe/merges.pkl', ['<|endoftext|>'])
 
-    prompt = "Once upon a time"
+    prompt = "What is the square root of pi?"
     max_length = 256
     temperature = 0.8
     p = 0.9

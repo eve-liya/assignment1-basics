@@ -91,20 +91,19 @@ class Transformer_Block(nn.Module):
         super().__init__()
         self.ln1 = RMSNorm(d_model)
         self.attn = Multihead_Self_Attention(d_model, num_heads, None, attn_pdrop)
-        self.drop1 = nn.Dropout(residual_pdrop or 0.0)
+        self.dropout = nn.Dropout(residual_pdrop or 0.0)
 
         self.ln2 = RMSNorm(d_model)
         self.ffn = FFN(d_model, d_ff)
-        self.drop2 = nn.Dropout(residual_pdrop or 0.0)
 
     def forward(self, x: torch.FloatTensor):
         normalized_attn = self.ln1(x)
         attn = self.attn(normalized_attn)
-        x = x + self.drop1(attn)
+        x = x + self.dropout(attn)
 
         normalized_ffn = self.ln2(x)
         ffn = self.ffn(normalized_ffn)
-        return x + self.drop2(ffn)
+        return x + self.dropout(ffn)
 
 class Transformer_LM(nn.Module):
     def __init__(self, d_model: int, num_heads: int, d_ff: int, 
@@ -145,18 +144,15 @@ class Parallel_Layer_Transformer_Block(nn.Module):
         super().__init__()
         self.ln1 = RMSNorm(d_model)
         self.attn = Multihead_Self_Attention(d_model, num_heads, None, attn_pdrop)
-        self.drop1 = nn.Dropout(residual_pdrop or 0.0)
+        self.dropout = nn.Dropout(residual_pdrop or 0.0)
 
         self.ln2 = RMSNorm(d_model)
         self.ffn = FFN(d_model, d_ff)
-        self.drop2 = nn.Dropout(residual_pdrop or 0.0)
 
     def forward(self, x: torch.FloatTensor):
         # Parallel Layers
-        x_residual = x
-        x1 = self.drop1(self.attn(self.ln1(x)))
-        x2 = self.drop2(self.ffn(self.ln2(x)))
-        return x_residual + x1 + x2
+        return x + self.dropout(self.attn(self.ln1(x))) + self.dropout(self.ffn(self.ln2(x)))
+
 
 class Parallel_Transformer_LM(nn.Module):
     def __init__(self, d_model: int, num_heads: int, d_ff: int, 
@@ -197,15 +193,13 @@ class Norm_Ablation_Transformer_Block(nn.Module):
     def __init__(self, d_model: int, num_heads: int, d_ff: int, attn_pdrop: float | None = None, residual_pdrop: float | None = None):
         super().__init__()
         self.attn = Multihead_Self_Attention(d_model, num_heads, None, attn_pdrop)
-        self.drop1 = nn.Dropout(residual_pdrop or 0.0)
-
+        self.dropout = nn.Dropout(residual_pdrop or 0.0)
         self.ffn = FFN(d_model, d_ff)
-        self.drop2 = nn.Dropout(residual_pdrop or 0.0)
 
     def forward(self, x: torch.FloatTensor):
-        x = x + self.drop1(self.attn(x))
+        x = x + self.dropout(self.attn(x))
         ffn = self.ffn(x)
-        return x + self.drop2(ffn)
+        return x + self.dropout(ffn)
 
 class Norm_Ablation_Transformer_LM(nn.Module):
     def __init__(self, d_model: int, num_heads: int, d_ff: int, 
@@ -220,7 +214,6 @@ class Norm_Ablation_Transformer_LM(nn.Module):
         self.layers = nn.ModuleList([
             Norm_Ablation_Transformer_Block(d_model, num_heads, d_ff, attn_pdrop, residual_pdrop) for _ in range(num_layers)
         ])
-        self.ln_final = RMSNorm(d_model)
         self.lm_head = nn.Linear(d_model, vocab_size, bias=False)
 
     def forward(self, x: torch.LongTensor) -> torch.FloatTensor:
@@ -245,21 +238,14 @@ class Post_Norm_Transformer_Block(nn.Module):
         super().__init__()
         self.ln1 = RMSNorm(d_model)
         self.attn = Multihead_Self_Attention(d_model, num_heads, None, attn_pdrop)
-        self.drop1 = nn.Dropout(residual_pdrop or 0.0)
+        self.dropout = nn.Dropout(residual_pdrop or 0.0)
 
         self.ln2 = RMSNorm(d_model)
         self.ffn = FFN(d_model, d_ff)
-        self.drop2 = nn.Dropout(residual_pdrop or 0.0)
 
     def forward(self, x: torch.FloatTensor):
-        attn = self.attn(x)
-        x = self.drop1(x + attn)
-        x = self.ln1(x)
-
-        ffn = self.ffn(x)
-        x = self.drop2(x + ffn)
-        x = self.ln2(x)
-
+        x = self.ln1(x + self.dropout(self.attn(x)))
+        x = self.ln2(x + self.dropout(self.ffn(x)))
         return x
 
 class Post_Norm_Transformer_LM(nn.Module):

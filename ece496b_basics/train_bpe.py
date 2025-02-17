@@ -2,8 +2,19 @@ import regex as re
 from collections import Counter, defaultdict
 import pickle
 from tqdm import tqdm
+import time
+import psutil
+import os
+
+# Start memory tracking
+process = psutil.Process(os.getpid())
+
+# Function to track memory usage
+def monitor_memory():
+    return process.memory_info().rss  # Returns memory usage in bytes
 
 def train_bpe(input_path, vocab_size, special_tokens):
+    start_time = time.time()
     vocab = {}
     new_index = 0
     for token in special_tokens:
@@ -12,6 +23,7 @@ def train_bpe(input_path, vocab_size, special_tokens):
     for x in range(1, 257):
         vocab[new_index] = bytes([x - 1])
         new_index += 1
+    init_vocab_time = time.time()
 
     # Pretokenize the file.
     PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
@@ -29,6 +41,7 @@ def train_bpe(input_path, vocab_size, special_tokens):
                 # Represent token as a tuple of individual bytes.
                 token_tuple = tuple(token_bytes[i:i+1] for i in range(len(token_bytes)))
                 word_freq[token_tuple] += 1
+    pretokenize_time = time.time()
 
     # Each word is stored as a dict with:
     #   'tokens': list of tokens
@@ -39,6 +52,7 @@ def train_bpe(input_path, vocab_size, special_tokens):
             'tokens': list(token_tuple),
             'freq': freq
         })
+    construct_wordlist_time = time.time()
 
     # pair_occurrences maps a pair (tuple of two tokens) to a set of occurrences where it appears in,
     # where each occurrence is (word_index, position) indicating where the pair occurs.
@@ -51,16 +65,24 @@ def train_bpe(input_path, vocab_size, special_tokens):
             pair = (tokens[pos], tokens[pos+1])
             pair_occurrences[pair].add((word_id, pos))
             pair_freq[pair] += word['freq']
+    compute_pair_freq_time = time.time()
+
+    total_find_max_pair_time = 0
+    total_process_occurrences_time = 0
 
     merges = []
     pbar = tqdm(total=vocab_size - len(vocab), desc="Training BPE")
     while len(vocab) < vocab_size and pair_freq:
+
+        
         # Find the most frequent pair
         # (Potentially could use some priority queue/heap but updating that becomes tricky)
+        max_pair_start_time = time.time()
         curr_max = (0, None)
         for pair, count in pair_freq.items():
             if curr_max[1] is None or count > curr_max[0] or (count == curr_max[0] and pair > curr_max[1]):
                 curr_max = (count, pair)
+        total_find_max_pair_time += time.time() - max_pair_start_time  # Accumulate time
 
         max_pair = curr_max[1]
         max_count = curr_max[0]
@@ -79,6 +101,7 @@ def train_bpe(input_path, vocab_size, special_tokens):
         del pair_occurrences[max_pair]
         del pair_freq[max_pair]
 
+        update_affected_start_time = time.time()
         # avoid updating the same word multiple times, group by word_id.
         affected_word_ids = {word_id for (word_id, pos) in affected_occurrences}
         for word_id in affected_word_ids:
@@ -114,9 +137,23 @@ def train_bpe(input_path, vocab_size, special_tokens):
                 new_pair = (new_tokens[pos], new_tokens[pos+1])
                 pair_occurrences[new_pair].add((word_id, pos))
                 pair_freq[new_pair] += word['freq']
-
+        total_process_occurrences_time += time.time() - update_affected_start_time
         pbar.update(1)
     pbar.close()
+    merge_pairs_time = time.time()
+
+    # Memory tracking
+    peak_memory = monitor_memory() / (1024 ** 2)  # Convert bytes to MB
+    print(f"Peak Memory Usage: {peak_memory:.2f} MB")
+
+    print(f"Initialization: {init_vocab_time - start_time:.4f} sec")
+    print(f"Pre-tokenization: {pretokenize_time - init_vocab_time:.4f} sec")
+    print(f"Construct word list: {construct_wordlist_time - pretokenize_time:.4f} sec")
+    print(f"Compute pair frequencies: {compute_pair_freq_time - construct_wordlist_time:.4f} sec")
+    print(f"Merge pairs: {merge_pairs_time - compute_pair_freq_time:.4f} sec")
+    print(f"Total time spent finding max pair: {total_find_max_pair_time:.4f} sec")
+    print(f"Total time spent processing affected occurrences: {total_process_occurrences_time:.4f} sec")
+    print(f"Total execution time: {merge_pairs_time - start_time:.4f} sec")
     return vocab, merges
 
 # start = time.time()
@@ -124,29 +161,28 @@ def train_bpe(input_path, vocab_size, special_tokens):
 # print(time.time() - start)
 # print(vo,me)
 
-# vo, me = train_bpe("data/TinyStoriesV2-GPT4-train.txt", 10000, ["<|endoftext|>"])
+vo, me = train_bpe("data/raw/TinyStoriesV2-GPT4-train.txt", 10000, ["<|endoftext|>"])
 # vo, me = train_bpe("data/owt_train.txt", 32000, ["<|endoftext|>"])
 
-if __name__ == '__main__':
-    import sys
-    if len(sys.argv) != 4:
-        print("Usage: dataset, vocab size, special tokens")
-        exit()
-    vo, me = train_bpe(sys.argv[1], int(sys.argv[2]), [sys.argv[3]])
+# if __name__ == '__main__':
+#     import sys
+#     if len(sys.argv) != 4:
+#         print("Usage: dataset, vocab size, special tokens")
+#         exit()
+#     vo, me = train_bpe(sys.argv[1], int(sys.argv[2]), [sys.argv[3]])
 
-    with open("vocab.txt", "w") as file:
-                        for token, string in vo.items():
-                            file.write(
-                                str(token)
-                                + " : "
-                                + string.decode("utf8", errors="replace")
-                                + "\n"
-                            )
-    with open("vocab.pkl", "wb") as file:
-        pickle.dump(vo, file)
-    with open("merges.txt", "w") as file:
-        for merge in me:
-            file.write(" ".join(map(str, merge)) + "\n")
-    with open("merges.pkl", "wb") as file:
-        pickle.dump(me, file)
-
+#     with open("vocab.txt", "w") as file:
+#                         for token, string in vo.items():
+#                             file.write(
+#                                 str(token)
+#                                 + " : "
+#                                 + string.decode("utf8", errors="replace")
+#                                 + "\n"
+#                             )
+#     with open("vocab.pkl", "wb") as file:
+#         pickle.dump(vo, file)
+#     with open("merges.txt", "w") as file:
+#         for merge in me:
+#             file.write(" ".join(map(str, merge)) + "\n")
+#     with open("merges.pkl", "wb") as file:
+#         pickle.dump(me, file)
